@@ -34,44 +34,33 @@ st.title("📦 Quản lý nguyên phụ liệu theo mã hàng")
 if df.empty:
     st.warning("Google Sheet đang rỗng, hãy thêm dữ liệu mới 👇")
 else:
-    # Hiển thị & chỉnh sửa từng mã hàng
     for ma_hang in df["Mã hàng"].unique():
         st.subheader(f"📌 Mã hàng: {ma_hang}")
 
         df_mahang = df[df["Mã hàng"] == ma_hang]
 
-        # Cho phép thêm dòng mới trực tiếp
+        # Cho phép thêm / sửa trực tiếp
         edited_df = st.data_editor(
             df_mahang, num_rows="dynamic", key=f"edit_{ma_hang}"
         )
 
-        # ---- TÌM DÒNG MỚI ----
-        new_rows = edited_df[~edited_df.apply(tuple, 1).isin(df_mahang.apply(tuple, 1))]
-        if not new_rows.empty:
-            for _, row in new_rows.iterrows():
-                row_dict = row.to_dict()
-                headers = sheet.row_values(1)  # lấy header từ Sheet
-                row_to_add = [row_dict.get(col, "") for col in headers]
-                sheet.append_row(row_to_add)
-
-            # Cập nhật session_state
-            st.session_state.df = pd.concat([df, new_rows], ignore_index=True)
-            df = st.session_state.df
-            st.success(f"✅ Đã thêm {len(new_rows)} dòng mới vào Google Sheet")
-
-        # ---- CẬP NHẬT CHỈNH SỬA ----
+        # =========================
+        # SO SÁNH & CẬP NHẬT TỰ ĐỘNG
+        # =========================
         if not edited_df.equals(df_mahang):
-            if st.button(f"💾 Lưu thay đổi cho {ma_hang}", key=f"save_{ma_hang}"):
-                df_all = df[df["Mã hàng"] != ma_hang]
-                st.session_state.df = pd.concat([df_all, edited_df], ignore_index=True)
+            # Gộp phần dữ liệu khác mã hàng + phần chỉnh sửa mới
+            df_all = df[df["Mã hàng"] != ma_hang]
+            st.session_state.df = pd.concat([df_all, edited_df], ignore_index=True)
 
-                # Ghi lại toàn bộ df vào Google Sheet
-                sheet.clear()
-                sheet.update(
-                    [st.session_state.df.columns.values.tolist()] +
-                    st.session_state.df.values.tolist()
-                )
-                st.success(f"✅ Đã lưu thay đổi cho {ma_hang}")
+            # Ghi toàn bộ session_state.df về Google Sheet
+            sheet.clear()
+            sheet.update(
+                [st.session_state.df.columns.values.tolist()] +
+                st.session_state.df.values.tolist()
+            )
+
+            df = st.session_state.df
+            st.success(f"✅ Đã đồng bộ thay đổi của {ma_hang} với Google Sheet")
 
     st.markdown("---")
 
@@ -102,7 +91,6 @@ with st.form("add_new"):
             except:
                 so_luong_val = 0
 
-            # Chuẩn bị dòng mới
             new_row = {
                 "Mã hàng": ma_hang_new,
                 "Tên nguyên phụ liệu": ten_nguyen_phu_lieu,
