@@ -31,32 +31,71 @@ df = st.session_state.df
 
 st.title("📦 Quản lý nguyên phụ liệu theo mã hàng")
 
-st.info("Bạn có thể thêm dòng mới, sửa dữ liệu hoặc xoá dòng trực tiếp. "
-        "Mọi thay đổi sẽ được đồng bộ lên Google Sheet.")
+if df.empty:
+    st.warning("Google Sheet đang rỗng, hãy thêm dữ liệu mới 👇")
+else:
+    # Lặp qua từng mã hàng và hiển thị thành bảng riêng
+    for ma_hang in df["Mã hàng"].unique():
+        st.subheader(f"📌 Mã hàng: {ma_hang}")
+
+        df_ma = df[df["Mã hàng"] == ma_hang].reset_index(drop=True)
+
+        edited_df = st.data_editor(
+            df_ma,
+            num_rows="dynamic",  # cho phép thêm dòng
+            use_container_width=True,
+            key=f"editor_{ma_hang}"
+        )
+
+        if st.button(f"💾 Lưu thay đổi cho {ma_hang}", key=f"save_{ma_hang}"):
+            # Gộp lại toàn bộ DataFrame, thay phần mã hàng này bằng dữ liệu mới
+            df_rest = df[df["Mã hàng"] != ma_hang]
+            st.session_state.df = pd.concat([df_rest, edited_df], ignore_index=True)
+
+            # Ghi toàn bộ lại Google Sheet
+            sheet.clear()
+            sheet.update(
+                [st.session_state.df.columns.values.tolist()] +
+                st.session_state.df.fillna("").values.tolist()
+            )
+
+            st.success(f"✅ Đã đồng bộ thay đổi cho {ma_hang}")
 
 # =========================
-# HIỂN THỊ VÀ CHO PHÉP CHỈNH SỬA TRỰC TIẾP
+# FORM THÊM MÃ HÀNG MỚI
 # =========================
-edited_df = st.data_editor(
-    df,
-    num_rows="dynamic",   # cho phép thêm dòng mới
-    use_container_width=True,
-    key="editor"
-)
+st.markdown("---")
+st.header("➕ Thêm dòng mới")
 
-# =========================
-# ĐỒNG BỘ VỚI GOOGLE SHEET
-# =========================
-if not edited_df.equals(df):
-    st.session_state.df = edited_df
+with st.form("add_new"):
+    col1, col2 = st.columns(2)
+    with col1:
+        ma_hang_new = st.text_input("Mã hàng")
+        ten_nguyen_phu_lieu = st.text_input("Tên nguyên phụ liệu")
+    with col2:
+        so_luong = st.number_input("Số lượng", min_value=0, step=1)
+        ghi_chu = st.text_input("Ghi chú")
 
-    # Xóa toàn bộ dữ liệu cũ
-    sheet.clear()
+    submitted = st.form_submit_button("Thêm vào Google Sheet")
 
-    # Ghi header + dữ liệu mới
-    sheet.update(
-        [edited_df.columns.values.tolist()] +
-        edited_df.fillna("").values.tolist()
-    )
+    if submitted:
+        if not ma_hang_new:
+            st.error("❌ Vui lòng nhập Mã hàng")
+        else:
+            new_row = {
+                "Mã hàng": ma_hang_new,
+                "Tên nguyên phụ liệu": ten_nguyen_phu_lieu,
+                "Số lượng": so_luong,
+                "Ghi chú": ghi_chu
+            }
 
-    st.success("✅ Đã đồng bộ thay đổi với Google Sheet")
+            # Append vào sheet
+            headers = sheet.row_values(1)
+            row_to_add = [new_row.get(col, "") for col in headers]
+            sheet.append_row(row_to_add)
+
+            # Cập nhật lại DataFrame trong app
+            new_df = pd.DataFrame([new_row])
+            st.session_state.df = pd.concat([st.session_state.df, new_df], ignore_index=True)
+
+            st.success(f"✅ Đã thêm mã hàng {ma_hang_new}")
