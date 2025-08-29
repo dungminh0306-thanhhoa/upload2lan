@@ -34,25 +34,25 @@ st.title("📦 Quản lý nguyên phụ liệu theo mã hàng")
 if df.empty:
     st.warning("Google Sheet đang rỗng, hãy thêm dữ liệu mới 👇")
 else:
+    # Hiển thị & chỉnh sửa từng mã hàng
     for ma_hang in df["Mã hàng"].unique():
         st.subheader(f"📌 Mã hàng: {ma_hang}")
 
         df_mahang = df[df["Mã hàng"] == ma_hang]
 
-        # Cho phép thêm / sửa trực tiếp
+        # Cho phép thêm / sửa / xoá trực tiếp
         edited_df = st.data_editor(
             df_mahang, num_rows="dynamic", key=f"edit_{ma_hang}"
         )
 
         # =========================
-        # SO SÁNH & CẬP NHẬT TỰ ĐỘNG
+        # ĐỒNG BỘ TỰ ĐỘNG VỚI GOOGLE SHEET
         # =========================
         if not edited_df.equals(df_mahang):
-            # Gộp phần dữ liệu khác mã hàng + phần chỉnh sửa mới
             df_all = df[df["Mã hàng"] != ma_hang]
             st.session_state.df = pd.concat([df_all, edited_df], ignore_index=True)
 
-            # Ghi toàn bộ session_state.df về Google Sheet
+            # Ghi lại toàn bộ DataFrame vào Google Sheet
             sheet.clear()
             sheet.update(
                 [st.session_state.df.columns.values.tolist()] +
@@ -76,7 +76,7 @@ with st.form("add_new"):
         ma_hang_new = st.text_input("Mã hàng")
         ten_nguyen_phu_lieu = st.text_input("Tên nguyên phụ liệu")
     with col2:
-        so_luong = st.text_input("Số lượng (có thể bỏ trống)")
+        so_luong = st.number_input("Số lượng", min_value=0, step=1, value=0)
         ghi_chu = st.text_input("Ghi chú")
 
     submitted = st.form_submit_button("Thêm vào Google Sheet")
@@ -85,23 +85,20 @@ with st.form("add_new"):
         if not ma_hang_new:
             st.error("❌ Vui lòng nhập Mã hàng")
         else:
-            # Nếu để trống thì gán số lượng = 0
-            try:
-                so_luong_val = int(so_luong) if so_luong.strip() else 0
-            except:
-                so_luong_val = 0
-
+            # Chuẩn bị dòng mới
             new_row = {
                 "Mã hàng": ma_hang_new,
                 "Tên nguyên phụ liệu": ten_nguyen_phu_lieu,
-                "Số lượng": so_luong_val,
+                "Số lượng": so_luong,
                 "Ghi chú": ghi_chu
             }
 
+            # Append vào Google Sheet
             headers = sheet.row_values(1)  # lấy header
             row_to_add = [new_row.get(col, "") for col in headers]
             sheet.append_row(row_to_add)
 
+            # Cập nhật DataFrame trong app
             new_df = pd.DataFrame([new_row])
             st.session_state.df = pd.concat([st.session_state.df, new_df], ignore_index=True)
 
