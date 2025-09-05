@@ -61,9 +61,7 @@ st.subheader("✍️ Thêm dữ liệu mới vào sheet")
 with st.form("add_row_form"):
     new_id = st.text_input("ID sản phẩm")
     new_name = st.text_input("Tên sản phẩm")
-    new_price = st.text_input("Giá")
-    new_image = st.text_input("Link ảnh (tùy chọn)")
-    submitted = st.form_submit_button("Thêm vào Google Sheets")
+    submitted = st.form_submit_button("Thêm")
 
     if submitted:
         # Chuẩn bị dòng dữ liệu mới
