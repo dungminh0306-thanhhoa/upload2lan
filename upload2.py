@@ -66,7 +66,7 @@ with st.form("add_row_form"):
 
     if submitted:
         # Chuẩn bị dòng dữ liệu mới
-        new_row = [new_id, new_name, new_price, new_image]
+        new_row = [new_id, new_name, new quanty]
 
         # Thêm vào cuối sheet
         worksheet.append_row(new_row)
