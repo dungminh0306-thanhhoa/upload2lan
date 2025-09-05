@@ -3,99 +3,54 @@ import pandas as pd
 import gspread
 from google.oauth2.service_account import Credentials
 
-st.set_page_config(page_title="Quản lý nguyên phụ liệu", layout="wide")
-
-# =========================
-# KẾT NỐI GOOGLE SHEET
-# =========================
+# --- 1. Cấu hình kết nối tới Google Sheets ---
 scope = [
     "https://www.googleapis.com/auth/spreadsheets",
     "https://www.googleapis.com/auth/drive"
 ]
-creds = Credentials.from_service_account_info(
-    st.secrets["gcp_service_account"], scopes=scope
+
+# Bí mật tài khoản dịch vụ sẽ được lưu trong secrets của Streamlit
+credentials = Credentials.from_service_account_info(
+    st.secrets["gcp_service_account"],
+    scopes=scope,
 )
-client = gspread.authorize(creds)
+client = gspread.authorize(credentials)
 
-SHEET_ID = "1my6VbCaAlDjVm5ITvjSV94tVU8AfR8zrHuEtKhjCAhY"   # thay bằng ID thật
-sheet = client.open_by_key(SHEET_ID).sheet1
+# --- 2. Mở file Google Sheets theo URL ---
+sheet_url = "https://docs.google.com/spreadsheets/d/1my6VbCaAlDjVm5ITvjSV94tVU8AfR8zrHuEtKhjCAhY/edit?usp=sharing"
+spreadsheet = client.open_by_url(sheet_url)
 
-# =========================
-# ĐỌC DỮ LIỆU LẦN ĐẦU
-# =========================
-if "df" not in st.session_state:
-    data = sheet.get_all_records()
-    st.session_state.df = pd.DataFrame(data)
+# --- 3. Lấy danh sách sheet (tab) -->
+worksheets = spreadsheet.worksheets()
+sheet_names = [ws.title for ws in worksheets]
 
-df = st.session_state.df
+# --- 4. Sidebar cho phép chọn sheet ---
+selected_sheet = st.sidebar.selectbox("Chọn sheet để xem:", sheet_names)
 
-st.title("📦 Quản lý nguyên phụ liệu theo mã hàng")
+# --- 5. Đọc dữ liệu từ sheet đã chọn ---
+worksheet = spreadsheet.worksheet(selected_sheet)
+records = worksheet.get_all_records()
+df = pd.DataFrame(records)
 
-if df.empty:
-    st.warning("Google Sheet đang rỗng, hãy thêm dữ liệu mới 👇")
-else:
-    # Lặp qua từng mã hàng và hiển thị thành bảng riêng
-    for ma_hang in df["Mã hàng"].unique():
-        st.subheader(f"📌 Mã hàng: {ma_hang}")
+# --- 6. Hiển thị dữ liệu ---
+st.title("🔍 Xem dữ liệu từ Google Sheets")
+st.write(f"**File:** theo mã hàng")
+st.subheader(f"Sheet đang xem: **{selected_sheet}**")
+st.dataframe(df)
 
-        df_ma = df[df["Mã hàng"] == ma_hang].reset_index(drop=True)
+# --- 7. (Tuỳ chọn) Hiển thị ảnh nếu có cột URL ảnh ---
+if "image" in df.columns:
+    st.subheader("Hình ảnh minh hoạ")
+    for idx, row in df.iterrows():
+        img_url = row.get("image")
+        name = row.get("name", "")
+        if img_url:
+            st.image(img_url, caption=name, use_column_width=True)
 
-        edited_df = st.data_editor(
-            df_ma,
-            num_rows="dynamic",  # cho phép thêm dòng
-            use_container_width=True,
-            key=f"editor_{ma_hang}"
-        )
-
-        if st.button(f"💾 Lưu thay đổi cho {ma_hang}", key=f"save_{ma_hang}"):
-            # Gộp lại toàn bộ DataFrame, thay phần mã hàng này bằng dữ liệu mới
-            df_rest = df[df["Mã hàng"] != ma_hang]
-            st.session_state.df = pd.concat([df_rest, edited_df], ignore_index=True)
-
-            # Ghi toàn bộ lại Google Sheet
-            sheet.clear()
-            sheet.update(
-                [st.session_state.df.columns.values.tolist()] +
-                st.session_state.df.fillna("").values.tolist()
-            )
-
-            st.success(f"✅ Đã đồng bộ thay đổi cho {ma_hang}")
-
-# =========================
-# FORM THÊM MÃ HÀNG MỚI
-# =========================
-st.markdown("---")
-st.header("➕ Thêm dòng mới")
-
-with st.form("add_new"):
-    col1, col2 = st.columns(2)
-    with col1:
-        ma_hang_new = st.text_input("Mã hàng")
-        ten_nguyen_phu_lieu = st.text_input("Tên nguyên phụ liệu")
-    with col2:
-        so_luong = st.number_input("Số lượng", min_value=0, step=1)
-        ghi_chu = st.text_input("Ghi chú")
-
-    submitted = st.form_submit_button("Thêm vào Google Sheet")
-
-    if submitted:
-        if not ma_hang_new:
-            st.error("❌ Vui lòng nhập Mã hàng")
-        else:
-            new_row = {
-                "Mã hàng": ma_hang_new,
-                "Tên nguyên phụ liệu": ten_nguyen_phu_lieu,
-                "Số lượng": so_luong,
-                "Ghi chú": ghi_chu
-            }
-
-            # Append vào sheet
-            headers = sheet.row_values(1)
-            row_to_add = [new_row.get(col, "") for col in headers]
-            sheet.append_row(row_to_add)
-
-            # Cập nhật lại DataFrame trong app
-            new_df = pd.DataFrame([new_row])
-            st.session_state.df = pd.concat([st.session_state.df, new_df], ignore_index=True)
-
-            st.success(f"✅ Đã thêm mã hàng {ma_hang_new}")
+# --- 8. (Tuỳ chọn) Lọc theo tên sản phẩm hoặc mã ---
+st.subheader("Tìm kiếm nhanh")
+search_term = st.text_input("Nhập id hoặc name để lọc:")
+if search_term:
+    filtered = df[df.apply(lambda row: search_term.lower() in str(row["id"]).lower() or search_term.lower() in str(row["name"]).lower(), axis=1)]
+    st.write(f"### Kết quả lọc cho '{search_term}':")
+    st.dataframe(filtered)
