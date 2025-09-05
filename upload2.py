@@ -61,6 +61,7 @@ st.subheader("✍️ Thêm dữ liệu mới vào sheet")
 with st.form("add_row_form"):
     new_id = st.text_input("ID sản phẩm")
     new_name = st.text_input("Tên sản phẩm")
+    new_quanty= st.text_input("Số lượng")
     submitted = st.form_submit_button("Thêm")
 
     if submitted:
